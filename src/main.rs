@@ -17,51 +17,73 @@ enum FanMode {
     Automatic,
 }
 
-fn change_speed(speed: u32) -> String {
+fn change_speed(speed: u32) -> Vec<String> {
+		let mut retv = Vec::new();
+		retv.push(String::from("raw"));
+		retv.push(String::from("0x30"));
+		retv.push(String::from("0x30"));
+		retv.push(String::from("0x02"));
+		retv.push(String::from("0xff"));
     if speed > 4000 {
 				println!("Speed: 0x10 - 3000RPM");
-        "raw 0x30 0x30 0x02 0xff 0x10".to_string()
+        retv.push(String::from("0x10"));
     } else if speed > 2000 && speed < 3000 {
 				println!("Speed: 0x0a - 2160RPM");
-        "raw 0x30 0x30 0x02 0xff 0x0a".to_string()
+        retv.push(String::from("0x0a"));
     } else if speed < 2000 {
+        retv.push(String::from("0x09"));
 				println!("Speed: 0x09 - 1560RPM");
-        "raw 0x30 0x30 0x03 0xff 0x09".to_string()
     } else {
+        retv.push(String::from("0x0a"));
 				println!("Speed: 0x09 - 2160RPM");
-        "raw 0x30 0x30 0x02 0xff 0x0a".to_string()
     }
+		retv
 }
 
-fn fan_mode(fm: FanMode) -> String {
+fn fan_mode(fm: FanMode) -> Vec<String> {
+		let mut retv = Vec::new();
+		retv.push(String::from("raw"));
+		retv.push(String::from("0x30"));
+		retv.push(String::from("0x30"));
+		retv.push(String::from("0x01"));
     match fm {
         Manual => {
 						println!("Manual fanmode");
-						"raw 0x30 0x30 0x01 0x00".to_string()
+						retv.push(String::from("0x00"));
 				},
         Automatic => {
 						println!("Automatic fanmode");
-						"raw 0x30 0x30 0x01 0x01".to_string()
+						retv.push(String::from("0x01"));
 				},
     }
+		retv
 }
 
-fn ipmitool_send(req : String, env : Env) {
-    let mut echo = Command::new("sh");
+fn ipmitool_send(req : Vec<String>, env : Env) {
+    let mut fan = Command::new("ipmitool");
 
-		match echo.output() {
-        Ok(o) => unsafe {
-            println!(
-                "Out: {}, args: {:?}, env: {}",
-                String::from_utf8_unchecked(o.stdout),
-                req,
-                serde_yaml::to_string(&env).unwrap()
-            );
-        },
-        Err(e) => {
-            println!("did not work: {}", e);
-        }
-    }
+		println!("ipmitool -I lanplus -H {} -U {} -P {} {}", env.host, env.user, env.password, req.join(" "));
+		fan.arg("-I")
+				.arg("lanplus")
+				.arg("-H")
+				.arg(env.host)
+				.arg("-U")
+				.arg(env.user)
+				.arg("-P")
+				.arg(env.password)
+				.args(&req);
+
+		fan.spawn().expect("No hostname specified!");
+}
+
+fn get_temp() -> Vec<String> {
+		let mut retv = Vec::new();
+
+		retv.push(String::from("sdr"));
+		retv.push(String::from("type"));
+		retv.push(String::from("temperature"));
+
+		retv
 }
 
 fn main() {
@@ -94,28 +116,29 @@ fn main() {
         panic!("env.yaml user not defined")
     }
 
-		let mut resp : String = "uninit".to_string();
+		let mut resp = Vec::new();
 
 		if args.len() > 2 {
 				if args[1] == "speed" {
 						println!("Using speed");
 						match args[2].parse::<u32>(){
 								Ok(n) => resp = change_speed(n),
-								Err(e) => resp = change_speed(3000)
+								Err(_) => resp = change_speed(3000)
 						}
 				}
 		} else if args.len() == 2 {
 				if args[1] == "man" {
 						resp = fan_mode(Manual)
+				} else if args[1] == "temp" {
+						resp = get_temp();
 				} else {
 						resp = fan_mode(Automatic)
 				}
 		}
 
-		if resp == "uninit" {
+		if resp.len() < 1{
 				println!("No parameters were parsed correctly");
 		} else {
 				ipmitool_send(resp, env)
 		}
-
 }
