@@ -74,6 +74,7 @@ fn ipmitool_send(req : Vec<String>, env : Env) {
 				.args(&req);
 
 		fan.spawn().expect("No hostname specified!");
+		return;
 }
 
 fn get_temp() -> Vec<String> {
@@ -87,6 +88,9 @@ fn get_temp() -> Vec<String> {
 }
 
 fn main() {
+		const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+		println!("Version: {}", VERSION);
+
     let default_conf = Env {
         host: String::from("uninit"),
         user: String::from("uninit"),
